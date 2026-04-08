@@ -35,9 +35,6 @@ UI-TARS-1.5-7B-Click-25/
 *.tar
 *.gz
 
-# Optional local data
-data/
-figure/
 
 # Private configuration files
 HFCode
