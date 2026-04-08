@@ -1,0 +1,40 @@
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS metadata
+.DS_Store
+__MACOSX/
+
+# Generated outputs
+agent_result/
+agent_result_old/
+results/
+stage1_result/
+stage2_result/
+
+# Model / training artifacts
+Qwen3-VL-2B-Click-NewPlan1/
+UI-TARS-1.5-7B-Click-25/
+*.bin
+*.pt
+*.pth
+*.safetensors
+
+# Archives
+*.zip
+*.tar
+*.gz
+
+# Optional local data
+data/
+figure/
+
+# Private configuration files
+HFCode
+
