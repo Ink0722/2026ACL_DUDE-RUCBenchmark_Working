@@ -158,21 +158,3 @@ def split_batch(samples, batch_size):
         element = {key: samples[key][i] for key in samples.keys()}
         single_elements.append(element)
     return single_elements
-# dataset = load_local_dataset("data/annotations/annotation.jsonl", "data/images", load_images=True)
-# split_dataset = dataset.train_test_split(test_size=0.2, seed=42)
-# train_dataset = split_dataset['train']
-# test_dataset = split_dataset['test']
-# print(f"Loaded local dataset with {len(train_dataset)} training samples and {len(test_dataset)} test samples.")
-
-# sample = train_dataset[0]
-# print("record keys:", list(sample.keys()))
-# print("images field (PIL objects or None):", sample.get("images"))
-# print("image_path_normalized:", sample.get("image_path_normalized"))
-
-# # 简单验证第一个图片对象
-# if sample.get("images"):
-#     img_obj = sample["images"][0]
-#     if img_obj is not None:
-#         img_obj.show()
-    
-# # ...existing code...

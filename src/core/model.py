@@ -6,9 +6,6 @@ from typing import List, Callable, Tuple, Any, Dict
 from dataclasses import dataclass
 from types import MethodType
 
-# from dotenv import load_dotenv
-# from openai import OpenAI
-# from google import genai
 from zai import ZhipuAiClient
 import torch
 
@@ -19,9 +16,8 @@ import numpy as np
 import os
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 os.environ["CHATANYWHERE_API_KEY"] = "sk-xtbmmu8JYNTtQHpZ9zW7co27gtzAuQdckXAQzxgpwEk6l7Bc"
-# from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, AutoModelForVision2Seq, AutoModelForMultimodalLM
+
 from transformers import AutoProcessor, AutoModelForVision2Seq, Glm4vForConditionalGeneration, AutoModelForImageTextToText
-# from transformers import Qwen2_5_VLForConditionalGeneration, AutoTokenizer, AutoProcessor, AutoModelForVision2Seq
 
 
 class BASE:
