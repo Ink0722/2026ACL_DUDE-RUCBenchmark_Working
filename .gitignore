@@ -1,4 +1,4 @@
-# Python artifacts
+﻿# Python artifacts
 __pycache__/
 *.pyc
 *.pyo
@@ -38,3 +38,7 @@ UI-TARS-1.5-7B-Click-25/
 
 # Private configuration files
 HFCode
+
+# Local backup files
+*.bak
+*.bak2

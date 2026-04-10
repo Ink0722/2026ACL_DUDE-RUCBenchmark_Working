@@ -21,15 +21,17 @@ class ReActAgent:
         backend: str = "uitars",
         device: str | None = None,
     ):
-        """閫氱敤 ReAct Agent銆?
+        
+        """Generic ReAct agent.
 
-        鍙傛暟锛?
-        - tools: 鎻愪緵缁?LLM 璋冪敤鐨勫伐鍏峰嚱鏁板垪琛?
-        - model: 妯″瀷鍚嶇О锛堜緥濡?"glm-4.6v" 鎴?"Qwen/Qwen3-VL-4B-Instruct"锛?
-        - project_directory: 褰撳墠椤圭洰鐩綍
-        - backend: "glm" 浣跨敤杩滅▼ GLM API锛?qwen3_local" 浣跨敤鏈湴 Qwen3-VL 鍚庣
-        - device: 鏈湴妯″瀷浣跨敤鐨勮澶囷紙濡?"cuda" 鎴?"cpu"锛夛紝涓虹┖鍒欑敱鍚庣鑷閫夋嫨
+        Args:
+            tools: Tool functions available to the model.
+            model: Model identifier, for example "glm-4.6v" or "Qwen/Qwen3-VL-4B-Instruct".
+            project_directory: Project root used by the agent prompt.
+            backend: Backend selector such as "glm", "qwen3_local", or "uitars".
+            device: Optional runtime device, for example "cuda" or "cpu".
         """
+
         self.tools = {func.__name__: func for func in tools}
         self.model = model
         self.project_directory = project_directory
@@ -77,13 +79,13 @@ class ReActAgent:
     def run(self, user_input: str|None=None, image_paths: List[str]|None=None, max_steps: int=3):
         messages = []
         step_count = 0
-        # 娣诲姞绯荤粺鎻愮ず
+        # Build the system message first.
         messages.append({
             "role": "system",
             "content": self.render_system_prompt(static_template)
         })
         
-        # 娣诲姞鐢ㄦ埛杈撳叆
+        # Build the multimodal user message.
         user_content = []
         if image_paths is not None:
             for img_path in image_paths:
@@ -106,22 +108,22 @@ class ReActAgent:
 
         while True:
 
-            # 姝ユ暟闄愬埗锛氭瘡娆″悜妯″瀷鍙戣捣涓€娆¤皟鐢紝閮界畻浣滀竴姝?
+            # Stop once the agent reaches the configured step limit.
             if step_count >= max_steps:
                 print(f"\n[Stop] Max steps {max_steps} reached.")
                 return "Max steps reached"
 
-            # 璇锋眰妯″瀷
+            # Query the model.
             content = self.client.call_model(messages)
             step_count += 1
 
-            # 妫€娴?Thought
+            # Parse the <thought> section when present.
             thought_match = re.search(r"<thought>(.*?)</thought>", content, re.DOTALL)
             if thought_match:
                 thought = thought_match.group(1)
-                print(f"馃挱 Thought: {thought}")
+                print(f"Thought: {thought}")
 
-            # 妫€娴嬫ā鍨嬫槸鍚﹁緭鍑?Final Answer锛屽鏋滄槸鐨勮瘽锛岀洿鎺ヨ繑鍥?
+            # Return immediately when the model emits a final answer.
             if "<final_answer>" in content:
                 try:
                     final_answer = re.search(r"<final_answer>(.*?)</final_answer>", content, re.DOTALL)
@@ -131,24 +133,23 @@ class ReActAgent:
                     print("[Error]: solely <final_answer> without </>")
                     return final_answer.group(1)
 
-            # 妫€娴?Action
+            # Parse the <action> section.
             action_match = re.search(r"<action>(.*?)</action>", content, re.DOTALL)
             if not action_match:
                 print("[Error]: Unmatch")
                 print("[UNmatch]:",content)
                 continue
-                # raise RuntimeError("妯″瀷鏈緭鍑?<action>")
 
             action = action_match.group(1)
             tool_name, args, kwargs = self.parse_action(action)
-            print(f"馃敡 Parameter Phase Action: {tool_name}")
+            print(f"Parameter Phase Action: {tool_name}")
 
-            # 鎵撳嵃鍙傛暟锛堥伩鍏?list/dict 涔嬬被 join 鍑洪敊锛?
+            # Format positional and keyword arguments for readable logging.
             pos_str = ", ".join(repr(a) for a in args)
             kw_str = ", ".join(f"{k}={v!r}" for k, v in kwargs.items())
-            all_str = ", ".join(s for s in [pos_str, kw_str] if s)  # 鍏煎娌℃湁 kwargs 鐨勬儏鍐?
-            print(f"馃敡 Action: {tool_name}({all_str})")
-            # 鍙湁缁堢鍛戒护鎵嶉渶瑕佽闂敤鎴凤紝鍏朵粬鐨勫伐鍏风洿鎺ユ墽琛?
+            all_str = ", ".join(s for s in [pos_str, kw_str] if s)  # Avoid dangling commas when kwargs are empty.
+            print(f"Action: {tool_name}({all_str})")
+            # Ask for confirmation before executing terminal commands.
             should_continue = input("\n\nContinue? (Y/N): ") if tool_name == "run_terminal_command" else "y"
             if should_continue.lower() != 'y':
                 print("\n\nOperation canceled.")
@@ -164,7 +165,7 @@ class ReActAgent:
 
 
     def get_tool_list(self) -> str:
-        """鐢熸垚宸ュ叿鍒楄〃瀛楃涓诧紝鍖呭惈鍑芥暟绛惧悕鍜岀畝瑕佽鏄?""
+        """Return one formatted line of documentation for each registered tool."""
         tool_descriptions = []
         for func in self.tools.values():
             name = func.__name__
@@ -174,7 +175,7 @@ class ReActAgent:
         return "\n".join(tool_descriptions)
 
     def render_system_prompt(self, system_prompt_template: str) -> str:
-        """娓叉煋绯荤粺鎻愮ず妯℃澘锛屾浛鎹㈠彉閲?""
+        """Render the system prompt template with runtime variables."""
         tool_list = self.get_tool_list()
         file_list = ", ".join(
             os.path.abspath(os.path.join(self.project_directory, f))
@@ -188,7 +189,7 @@ class ReActAgent:
         )
 
     def call_model(self, messages):
-        print("\n\n姝ｅ湪璇锋眰妯″瀷锛岃绋嶇瓑...")
+        print("\n\nCalling model...")
         response = self.client.chat.completions.create(
             model=self.model,
             messages=messages,
@@ -269,14 +270,14 @@ class ReActAgent:
     def _parse_single_arg(self, arg_str: str):
         arg_str = arg_str.strip()
 
-        # 鍒ゆ柇鏄惁涓哄瓧绗︿覆瀛楅潰閲忥紝鍖呮嫭琚?LLM 杞箟鎴?\"...\" 鐨勬儏鍐?
-        # 鎯呭喌1: "China"
-        # 鎯呭喌2: \"China\"
+        # Handle both plain quoted strings and extra-escaped strings returned by some models.
+        # Example 1: "China"
+        # Example 2: \"China\"
         if (
             (arg_str.startswith('"') and arg_str.endswith('"')) or
             (arg_str.startswith('\\"') and arg_str.endswith('\\"'))
         ):
-            # 鍘婚櫎鏈€澶栧眰寮曞彿锛堝鐞嗗娆¤浆涔夛級
+            # Normalize the outer quoting layer before unescaping the content.
             s = arg_str
 
             # Case like \"China\" -> strip first and last \"
@@ -287,7 +288,7 @@ class ReActAgent:
             elif s.startswith('"') and s.endswith('"'):
                 s = s[1:-1]
 
-            # 鎶婂唴閮ㄧ殑杞箟瀛楃鏍囧噯鍖?
+            # Decode common escape sequences left in the model output.
             s = s.replace('\\"', '"')
             s = s.replace("\\'", "'")
             s = s.replace('\\\\', '\\')
@@ -295,7 +296,7 @@ class ReActAgent:
 
             return s
 
-        # 鍏朵粬 literal锛堟暟瀛椼€乨ict銆乴ist 绛夛級
+        # Fall back to literal_eval for numbers, dicts, lists, and tuples.
         try:
             return ast.literal_eval(arg_str)
         except Exception:

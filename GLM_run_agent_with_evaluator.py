@@ -281,7 +281,7 @@ def _point_in_box(click: Optional[Tuple[float, float]], bbox: List[float]) -> bo
 
 def build_user_input(entry: Dict[str, Any]) -> str:
     
-    """浠?small_deception 涓娊鍙栫敤鎴蜂换鍔★紝骞舵嫾鎺ユ竻鏅扮殑鎿嶄綔鎸囦护浣滀负 user 鏂囨湰杈撳叆銆?""
+    """浠?small_deception 涓娊鍙栫敤鎴蜂换鍔★紝骞舵嫾鎺ユ竻鏅扮殑鎿嶄綔鎸囦护浣滀负 user 鏂囨湰杈撳叆銆?"""
 
     user_goal = ""
     for m in entry.get("messages", []):
