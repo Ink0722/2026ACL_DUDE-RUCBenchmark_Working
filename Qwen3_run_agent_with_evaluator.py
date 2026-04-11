@@ -17,7 +17,7 @@ _evaluator: Optional[Local] = None
 EVALUATOR_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 DEFAULT_ADAPTER_DIR = "Qwen3-VL-2B-Click-NewPlan1"
 
-# 基础配置
+# 基础的配置
 DATA_FILE = "use_deception.json"
 OUTPUT_DIR = "agent_result"
 MAX_AGENT_STEPS = 3
