@@ -1,11 +1,11 @@
-ï»¿import os
+import os
 import json
 import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .llm_agent import ReActAgent
-from .model import Local
-from .parser import extract_xml
+from src.core.model import Local
+from src.core.parser import extract_xml
 from src.evaluator.template import system_prompt
 
 
@@ -13,11 +13,11 @@ from src.evaluator.template import system_prompt
 _current_env: Optional["ClickEnv"] = None
 _evaluator: Optional[Local] = None
 
-# DUDEçš„ecaluatoræ¨¡å‹å’Œagentæ¨¡å‹é…ç½®
+# DUDEµÄecaluatorÄ£ĞÍºÍagentÄ£ĞÍÅäÖÃ
 EVALUATOR_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 DEFAULT_ADAPTER_DIR = "Qwen3-VL-2B-Click-NewPlan1"
 
-# åŸºç¡€çš„é…ç½®
+# »ù´¡µÄÅäÖÃ
 DATA_FILE = "use_deception.json"
 OUTPUT_DIR = "agent_result"
 MAX_AGENT_STEPS = 3
@@ -47,7 +47,7 @@ def get_evaluator() -> Local:
     )
     return _evaluator
 
-# è¿™é‡Œè€ƒè™‘è§£æé€»è¾‘æ˜¯å¦éœ€è¦æ”¶æˆä¸€ä¸ªå°å‡½æ•°
+# ÕâÀï¿¼ÂÇ½âÎöÂß¼­ÊÇ·ñĞèÒªÊÕ³ÉÒ»¸öĞ¡º¯Êı
 def run_eval_for_click(
     image_path: str,
     user_goal: str,
@@ -469,3 +469,6 @@ def run_gui_agent_on_small_deception(
 # Simple CLI entrypoint for running a subset of samples.
 if __name__ == "__main__":
     run_gui_agent_on_small_deception(max_samples=DEFAULT_MAX_SAMPLES)
+
+
+

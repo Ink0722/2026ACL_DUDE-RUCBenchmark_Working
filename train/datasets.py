@@ -1,31 +1,25 @@
-# ...existing code...
-import os
 import copy
 import json
-import time
-from PIL import Image
+import os
+
 from datasets import Dataset
-from .rule import generate_clicks 
-from .rule import generate_clicks_2
-from .rule import generate_empty_clicks
+from PIL import Image
+
+from .rule import generate_clicks, generate_clicks_2, generate_empty_clicks
 
 
-# 这里Train参数主要影响的是后续要不要生成空样本，事实上对于我们的情况来说不管怎么样都得生成，所以这里的参数值直接改成True
 def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images", load_images=True, Train=True):
-    """
-    load_images: 是否把图片读取为 PIL.Image 对象并放入 records["images"]
-    """
     ann_dir = os.path.dirname(os.path.abspath(ann_path))
-    content = open(ann_path, 'r', encoding='utf-8').read().lstrip('\ufeff')
-    initrecords = json.loads(content)   # 直接得到 list of dict
+    content = open(ann_path, "r", encoding="utf-8").read().lstrip("\ufeff")
+    initrecords = json.loads(content)
     records = []
 
     for rec in initrecords:
+        if not rec.get("correct_box") or not rec["correct_box"].get("bbox"):
+            continue
+        if rec.get("id") == 998:
+            continue
 
-        # 候选框为空的情况要略去，这个后面要改
-        if not rec.get("correct_box") or not rec["correct_box"].get("bbox"): continue
-        if rec.get("id") == 998: continue
-        
         img_field = rec.get("image_path") or rec.get("image") or rec.get("images") or rec.get("img")
         if img_field is None:
             rec["images"] = []
@@ -45,7 +39,6 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                 if p.startswith("./"):
                     p = p[2:]
 
-                # 尝试若干候选路径
                 candidates = [
                     os.path.normpath(os.path.join(ann_dir, p)),
                     os.path.normpath(os.path.join(os.getcwd(), p)),
@@ -61,7 +54,6 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                         break
 
                 if found is None:
-                    # 保持最后一个候选路径以便 later debugging
                     found = candidates[-1]
 
                 norm_paths.append(found)
@@ -70,26 +62,23 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                     try:
                         img = Image.open(found).convert("RGB")
                         images_objs.append(img)
-                        # print("🌳Successful load images!")
                     except Exception:
-                        # 若无法打开，记录 None（或可记录占位图）
                         images_objs.append(None)
-                        print("❌Not Successful load images!")
+                        print("Not Successful load images!")
 
             rec["images"] = images_objs if load_images else norm_paths
             rec["image_path_normalized"] = norm_paths
-        
+
         if Train and rec.get("dark_box") and rec["dark_box"].get("bbox"):
-            # correct and dark box all exists
             rec_d = copy.deepcopy(rec)
 
             clicks = generate_clicks(rec)
-            b_click,d_click = clicks["benign"], clicks["deceptive"]
+            b_click, d_click = clicks["benign"], clicks["deceptive"]
             n_clicks = generate_empty_clicks(rec)
-            
+
             rec["click"] = b_click["coordinates"]
             rec["gen_type"] = 1
-            
+
             rec_d["click"] = d_click["coordinates"]
             rec_d["gen_type"] = -1
 
@@ -103,12 +92,10 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                 records.append(rec_n)
 
         elif Train:
-            # only correct box exists
-            
             clicks = generate_clicks_2(rec)
             b_click = clicks["benign"]
             n_clicks = generate_empty_clicks(rec)
-            
+
             rec["click"] = b_click["coordinates"]
             rec["gen_type"] = 1
 
@@ -121,11 +108,11 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                 records.append(rec_n)
         else:
             records.append(rec)
-    
+
     print(records[:1])
 
     if Train:
-        for i,d in enumerate(records):
+        for i, d in enumerate(records):
             new_sp = (
                 "You are an experience optimizer for a web browsing agent."
                 "Given the screenshot, the user task and output click coordinates, "
@@ -144,13 +131,12 @@ def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images",
                 "Now here is your inputs:"
             )
             records[i]["messages"][0]["content"] = new_sp
-            # records[i]["messages"][1]["content"] = f'''Previous experience: {" "}. Output click: {d["click"]}. User task: ''' + records[i]["messages"][1]["content"]
-            records[i]["messages"][1]["content"] = f'''Output click: {d["click"]}. User task: ''' + records[i]["messages"][1]["content"]
+            records[i]["messages"][1]["content"] = f"Output click: {d['click']}. User task: " + records[i]["messages"][1]["content"]
 
     ds = Dataset.from_list(records)
-    print("[DST] Show 1 sample",ds[0])
-
+    print("[DST] Show 1 sample", ds[0])
     return ds
+
 
 def split_batch(samples, batch_size):
     single_elements = []

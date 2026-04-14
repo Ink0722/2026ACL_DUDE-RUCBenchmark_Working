@@ -1,4 +1,4 @@
-﻿import os
+import os
 import time
 import json
 
@@ -10,10 +10,10 @@ from peft import LoraConfig, get_peft_model
 from trl import GRPOConfig, GRPOTrainer, PeftModel
 from types import MethodType
 
-from src import hybrid_label_confidence_reward
-from src import load_local_dataset
-from src import make_conversation
-from src import Local
+from train.reward import hybrid_label_confidence_reward
+from train.datasets import load_local_dataset
+from train.formatter import make_conversation
+from src.core.model import Local
 from src.config import SETTINGS
 
 
@@ -300,3 +300,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+

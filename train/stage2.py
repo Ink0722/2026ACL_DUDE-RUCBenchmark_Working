@@ -6,8 +6,9 @@ import re
 from PIL import Image
 from datasets import Dataset, concatenate_datasets
 
-from src import format_url, extract_xml
-from src import Local, GLM
+from train.formatter import format_url
+from src.core.parser import extract_xml
+from src.core.model import Local, GLM
 from src.evaluator.template import static_template
 from src.config import SETTINGS, require_zhipuai_api_key
 
@@ -304,5 +305,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
 
 

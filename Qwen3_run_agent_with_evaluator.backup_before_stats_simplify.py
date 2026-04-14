@@ -1,9 +1,9 @@
-锘縤mport os
+import os
 import json
 import datetime
 from typing import Any, Dict, List, Tuple, Optional
 
-from src.core.llm_agent import ReActAgent
+from agent_runner.llm_agent import ReActAgent
 from src import Local
 from src.core import extract_xml
 from src.evaluator.template import system_prompt
@@ -13,7 +13,7 @@ from src.evaluator.template import system_prompt
 _current_env: Optional["ClickEnv"] = None
 _evaluator: Optional[Local] = None
 
-# DUDE鐨別caluator妯″瀷鍜宎gent妯″瀷閰嶇疆
+# DUDE的ecaluator模型和agent模型配置
 EVALUATOR_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 DEFAULT_ADAPTER_DIR = "Qwen3-VL-2B-Click-NewPlan1"
 
@@ -47,7 +47,7 @@ def get_evaluator() -> Local:
     )
     return _evaluator
 
-# 杩欓噷鑰冭檻瑙ｆ瀽閫昏緫鏄惁闇�瑕佹敹鎴愪竴涓皬鍑芥暟
+# 这里考虑解析逻辑是否需要收成一个小函数
 def run_eval_for_click(
     image_path: str,
     user_goal: str,
@@ -582,3 +582,4 @@ def run_gui_agent_on_small_deception(
 # Simple CLI entrypoint for running a subset of samples.
 if __name__ == "__main__":
     run_gui_agent_on_small_deception(max_samples=200)
+

@@ -1,10 +1,10 @@
-﻿import os
+import os
 # os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 import torch
 import numpy as np
 import random
-from src.utils.datasets import Dataset, concatenate_datasets
+from datasets import Dataset, concatenate_datasets
 
 from PIL import Image
 
@@ -15,10 +15,11 @@ from types import MethodType
 import re
 
 
-from src import format_url,extract_xml,add_row
-from src import load_local_dataset
-from src import make_conversation
-from src import Local, GLM
+from train.formatter import format_url, add_row
+from src.core.parser import extract_xml
+from train.datasets import load_local_dataset
+from train.formatter import make_conversation
+from src.core.model import Local, GLM
 from src.evaluator.template import system_prompt
 from src.config import SETTINGS, require_zhipuai_api_key
 
@@ -40,16 +41,16 @@ class EvalEXP:
         self.output_dir = output_dir
         self.device = device
         
-        # 鍒濆鍖栨暟鎹泦
+        # 初始化数据集
         self.dataset = None
         self.train_dataset : Dataset = None
         self.test_dataset : Dataset = None
         
-        # 鍒濆鍖栨ā鍨嬪拰澶勭悊鍣?
+        # 初始化模型和处理�?
         self.model = None
         self.processor = None
         
-        # TODO锛氳缁冨悗鐨勬ā鍨嬭矾寰勶紙闇€瑕佽ˉ鍏咃級
+        # TODO：训练后的模型路径（需要补充）
         self.trained_model_path = None
 
         self.API_KEY = api_key or SETTINGS.zhipuai_api_key
@@ -57,15 +58,15 @@ class EvalEXP:
         
     def load_data(self, test_size=0.2, seed=42,type="Train"):
         
-        """鍔犺浇鍜屽噯澶囨暟鎹泦"""
+        """加载和准备数据集"""
 
         print("Loading dataset...")
-        # TODO锛氫笉澶槑鐧借繖涓猅ype鍙傛暟鏄仛浠€涔堢敤鐨?
+        # TODO：不太明白这个Type参数是做什么用�?
         # self.dataset = load_local_dataset(self.data_path, self.images_dir, load_images=False)
         self.dataset = load_local_dataset(self.data_path, self.images_dir, load_images=False, Train=True)
         print(self.dataset)
 
-        # TODO: 鍒嗗壊鏁版嵁闆嗭紝杩欓噷鑰冭檻涓€涓嬫槸杩欐牱鍋氾紝杩樻槸鎸夌収鍙傛暟鐨勬柟娉曞幓鍋?
+        # TODO: 分割数据集，这里考虑一下是这样做，还是按照参数的方法去�?
         if type=="Train":
             split_dataset = self.dataset.train_test_split(test_size=test_size, seed=seed)
             self.train_dataset = split_dataset['train']
@@ -73,11 +74,11 @@ class EvalEXP:
         elif type=="Eval":
             self.train_dataset = self.dataset
         
-        # 鏍煎紡鍖栬缁冩暟鎹?
+        # 格式化训练数�?
         self.train_dataset = self.train_dataset.map(make_conversation)
         print(f"Loaded {len(self.train_dataset)} training f_samples and {len(self.test_dataset)} test f_samples")
         
-    # TODO锛氬彲閫夊湪绾挎ā鍨嬭交閲忓寲鍚姩锛堣繖閲岀殑杞婚噺鍖栧惎鍔ㄦ寚鐨勬槸Stage1杩樻槸2锛燂級
+    # TODO：可选在线模型轻量化启动（这里的轻量化启动指的是Stage1还是2？）
     def setup_cloud_model(self):
         self.model =  GLM(
                 model_name=SETTINGS.default_eval_model,`r`n                api_key=self.API_KEY,
@@ -87,7 +88,7 @@ class EvalEXP:
         
     def load_trained_model(self, model_path=None):
         
-        """鍔犺浇璁粌濂界殑妯″瀷鐢ㄤ簬浼樺寲"""
+        """加载训练好的模型用于优化"""
 
         if model_path is None:
             model_path = self.trained_model_path
@@ -97,7 +98,7 @@ class EvalEXP:
         
         print(f"Loading trained model from {model_path}...")
         
-        # 鍔犺浇璁粌濂界殑鏉冮噸
+        # 加载训练好的权重
         from peft import PeftModel
         base_model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
             self.model_id,
@@ -122,7 +123,7 @@ class EvalEXP:
                 "DO NOT FORGET THE XML MARK <exp></exp> when output!!"
                 "Now here is your inputs:"
             )
-        # TODO锛?鍒涘缓鏈湴Agent瀹炰緥锛堣繖涓搴旂殑鏄疭TEP1/2锛燂級
+        # TODO�?创建本地Agent实例（这个对应的是STEP1/2？）
         self.sum_agent = GLM(
             model_name=SETTINGS.default_eval_model,`r`n            api_key=require_zhipuai_api_key(self.API_KEY),
             SYSTEM_PROMPT=base_system_prompt
@@ -162,7 +163,7 @@ class EvalEXP:
             s_samples = self.success.filter(lambda x: x["id"] in s_id)
 
             self.success = self.success.filter(lambda x: x["id"] not in s_id)
-            # 鏋勫缓娑堟伅锛氭瘡涓浘鍍忎綔涓哄崟鐙殑鏉＄洰
+            # 构建消息：每个图像作为单独的条目
             image_paths = [format_url(sample["image_path_normalized"][0]) for sample in f_samples]
             
             content = [
@@ -177,7 +178,7 @@ class EvalEXP:
                 }
             ]
             
-            # 涓烘瘡涓浘鍍忔坊鍔犲崟鐙殑鏉＄洰
+            # 为每个图像添加单独的条目
             for url in image_paths:
                 content.append({
                     "type": "image_url",
@@ -234,7 +235,7 @@ class EvalEXP:
                 else:
                     failure_samples.append(sample)
             
-            # 鎵归噺鍚堝苟鏍锋湰锛岃€岄潪閫愪釜娣诲姞
+            # 批量合并样本，而非逐个添加
             if success_samples:
                 success_dataset = Dataset.from_dict({
                     key: [s[key] for s in success_samples]
@@ -257,19 +258,19 @@ class EvalEXP:
     def run_full_pipeline(self, 
                          train_params=None,
                          optimize_params=None):
-        """杩愯瀹屾暣鐨勮缁冨拰浼樺寲娴佹按绾?""
+        """运行完整的训练和优化流水�?""
         print("Starting full training and optimization pipeline...")
         
-        # 1. 鍔犺浇鏁版嵁
+        # 1. 加载数据
         self.load_data(type="Train")
 
-        # 2. 杩涜璁粌
+        # 2. 进行训练
         if self.API_KEY:
             self.setup_cloud_model()
         else:
             self.load_trained_model()
         
-        # 3. 杩涜浼樺寲
+        # 3. 进行优化
         self.load_exp_summarizer()
         optimize_params = optimize_params or {}
         experience = self.opt_exp_context(**optimize_params)
@@ -280,17 +281,17 @@ class EvalEXP:
         
 
 def main():
-    """涓诲嚱鏁扮ず渚?""
-    # 鍒涘缓鏁村悎鐨勮缁冨拰浼樺寲绯荤粺
+    """主函数示�?""
+    # 创建整合的训练和优化系统
     system = EvalEXP(use_api=True, api_key=require_zhipuai_api_key())
     
-    # 杩愯瀹屾暣娴佹按绾匡紝浣跨敤鏂扮殑缁勫悎濂栧姳鍑芥暟閫傞厤褰撳墠鏁版嵁闆嗙粨鏋?
+    # 运行完整流水线，使用新的组合奖励函数适配当前数据集结�?
     results = system.run_full_pipeline(
         train_params={
             'learning_rate': 1e-5,
             'num_train_epochs': 1,
             'per_device_train_batch_size': 2,
-            'reward_type': 'combined',  # 浣跨敤缁勫悎濂栧姳锛氭纭偣鍑?+ 鏆楁ā寮忛伩鍏?
+            'reward_type': 'combined',  # 使用组合奖励：正确点�?+ 暗模式避�?
         },
         optimize_params={
             'select_num': 25,
@@ -299,7 +300,7 @@ def main():
         }
     )
     
-    # 淇濆瓨浼樺寲缁撴灉
+    # 保存优化结果
     import json
     with open("optimization_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
@@ -312,5 +313,8 @@ def main():
 if __name__ == "__main__":
     main()
     # demo_reward_types()
+
+
+
 
 
