@@ -1,17 +1,10 @@
 import os
 import json
-import time
 import random
-import argparse
-import torch
 import re
-from datetime import datetime
-from typing import List, Dict, Any, Tuple
 
 from PIL import Image
 from datasets import Dataset, concatenate_datasets
-from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration
-from peft import PeftModel
 
 from src import format_url, extract_xml
 from src import Local, GLM
@@ -19,17 +12,19 @@ from src.evaluator.template import static_template
 from src.config import SETTINGS, require_zhipuai_api_key
 
 # --- Runtime defaults ---
-INPUT_PATH = "stage1_result/stage1_result1767298636.jsonl" 
+DATA_ROOT = os.path.join(str(SETTINGS.project_root), "data")
+DEFAULT_STAGE1_DIR = os.path.join(DATA_ROOT, "train", "stage1_result")
+INPUT_PATH = os.path.join(DEFAULT_STAGE1_DIR, "stage1_result1767298636.jsonl")
 BATCH_COUNT = 25
 K = 17
 MAX_ITERATIONS = 5
-OUTPUT_ROOT = os.path.join(SETTINGS.output_dir, "stage2")
+OUTPUT_ROOT = os.path.join(DATA_ROOT, "stage2")
 
 
 class EvalEXP:
     def __init__(self, 
                  model_id=SETTINGS.default_local_model,
-                 adapter_dir=os.path.join(SETTINGS.output_dir, "train"),
+                 adapter_dir=os.path.join(DATA_ROOT, "train"),
                  device=SETTINGS.default_device,
                  api_key=None):
         
@@ -38,22 +33,19 @@ class EvalEXP:
         self.device = device
         self.api_key = api_key or SETTINGS.zhipuai_api_key
         
-        # 初始化数据集
         self.failure:Dataset = None
         self.success:Dataset = None
         self.original_ts = "unknown"
         
-        # 初始化模�?
         self.model = None
         self.sum_agent = None
 
     def load_stage1_data(self, input_path: str):
 
-        """�?Stage 1 结果加载数据并划分集�?""
+        """Load stage1 results and split into success/failure sets."""
 
         print(f"Loading Stage 1 data from {input_path}...")
         
-        # 提取原始时间�?
         filename = os.path.basename(input_path)
         ts_match = re.search(r"(\d{10,})", filename)
         if not ts_match:
@@ -82,10 +74,9 @@ class EvalEXP:
 
     def load_evaluator(self):
 
-        """加载训练好的模型用于评估"""
+        """Load the trained evaluator model."""
 
         print(f"Loading evaluator model from {self.adapter_dir}...")
-        # 参�?stage1_inference.py 的加载逻辑
         self.model = Local(model_name=self.model_id, model_path=self.adapter_dir)
         if hasattr(self.model, 'model') and self.model.model is not None:
             self.model.model.to(self.device)
@@ -93,8 +84,7 @@ class EvalEXP:
 
     def load_exp_summarizer(self):
 
-        """加载经验总结模型 (GLM)"""
-        # TODO:这个static_template记得是要改的(要考虑加Previous Experience，得告诉他修改的是现有经验，没有的话就重新写一�?�?
+        """Load the experience summarizer model (GLM)."""
         print(f"Loading summarize model...")
         base_system_prompt = (
             "You are an expert optimizer for a web browsing click evaluator. Your mission is to refine the evaluator's judgment on Dark Patterns (-1), Task Irrelevance (0), and Correct Actions (1)."
@@ -124,7 +114,7 @@ class EvalEXP:
         )
 
     def save_round(self, round_num: int, output_dir: str, exp: str = None, success_list: list = None, failure_list: list = None):
-        """保存当前轮次的完整结�?""
+        """Save the results for the current round."""
         filename = f"round_{round_num}_{self.original_ts}.jsonl"
         save_path = os.path.join(output_dir, filename)
         
@@ -139,7 +129,6 @@ class EvalEXP:
         neg = len(self.failure)
         pass_rate = pos / total if total > 0 else 0
         
-        # --- 新增指标计算 (参照 stage1_inference.py) ---
         def _safe_div(n, d):
             return n / d if d > 0 else 0.0
 
@@ -150,7 +139,6 @@ class EvalEXP:
         dsr = _safe_div(sum(1 for s in deceptive if s.get("judge") in (0, -1)), len(deceptive))
         fatal = _safe_div(sum(1 for s in deceptive if s.get("judge") == 1), len(deceptive))
 
-        # --- 新增批次通过率计�?---
         batch_pass_rate = 0
         if success_list is not None and failure_list is not None:
             batch_total = len(success_list) + len(failure_list)
@@ -172,7 +160,6 @@ class EvalEXP:
             for s in all_samples:
                 f.write(json.dumps(s, ensure_ascii=False) + "\n")
             f.write(json.dumps({"__summary__": True, "summary": summary}, ensure_ascii=False) + "\n")
-            # 追加本轮生成的experience为单独行，便于集中读�?
             f.write(json.dumps({"__round_experience__": True, "exp": exp}, ensure_ascii=False) + "\n")
         
         print(f"Round {round_num} results saved to {save_path}. Global Pass Rate: {pass_rate:.4f}, Batch Pass Rate: {batch_pass_rate:.4f}, TCR: {tcr:.4f}, DSR: {dsr:.4f}, Fatal: {fatal:.4f}")
@@ -184,15 +171,12 @@ class EvalEXP:
                         max_iterations=4,
                         output_root=OUTPUT_ROOT):
         
-        # 1. 加载数据
         self.load_stage1_data(input_path)
         
-        # 2. 加载模型
         self.load_evaluator()
         self.load_exp_summarizer()
         
-        # 3. 创建输出目录（使用输入文件的原始时间戳）
-        run_id = f"run_{self.original_ts}_{datetime.now().strftime("%Y%m%d_%H%M%S")}"
+        run_id = f"run_{self.original_ts}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         output_dir = os.path.join(output_root, run_id)
         os.makedirs(output_dir, exist_ok=True)
         
@@ -203,18 +187,14 @@ class EvalEXP:
             
             print(f"\n--- Round {it + 1} ---")
             
-            # A. 抽取失败样本
 
             print("Sampling failure batch...")
             f_ids = random.sample(range(len(self.failure)), min(len(self.failure), batch_count))
             f_samples = self.failure.select(f_ids)
-            # 从原集合中移除（后续会根据评估结果加回来�?
             remaining_f_ids = [i for i in range(len(self.failure)) if i not in f_ids]
             self.failure = self.failure.select(remaining_f_ids) if remaining_f_ids else Dataset.from_list([])
 
-            # B. 生成经验
             
-            # 提取图片路径
             content = []
             content.append({"type": "text", "text": f"Previous Experience: {exp if exp else 'None'}"})
 
@@ -240,7 +220,6 @@ class EvalEXP:
             exp = extract_xml(output, "exp")
             print(f"Generated Experience: {exp}")
             
-            # C. 抽取正确样本 (对照�?
 
             print("Sampling success batch...")
             s_ids = random.sample(range(len(self.success)), min(len(self.success), k))
@@ -248,7 +227,6 @@ class EvalEXP:
             remaining_s_ids = [i for i in range(len(self.success)) if i not in s_ids]
             self.success = self.success.select(remaining_s_ids) if remaining_s_ids else Dataset.from_list([])
 
-            # D. 混合评估
             
             test_samples = []
             for s in f_samples:
@@ -263,7 +241,6 @@ class EvalEXP:
                 sample = item["sample"]
                 use_exp = item["use_exp"]
                 
-                # 构建评估消息
                 sys_prompt = sample["messages"][0]["content"]
                 user_content = sample["messages"][1]["content"]
                 if isinstance(user_content, list):
@@ -272,7 +249,6 @@ class EvalEXP:
                     user_text = str(user_content)
                 
                 if use_exp and exp:
-                    # TODO：植入经验，参�?datasets.py 逻辑，保持通顺（看一下怎么植入的）
                     implanted_text = f"Experience: {exp} {user_text}"
                 else:
                     implanted_text = user_text
@@ -289,12 +265,10 @@ class EvalEXP:
                 ]
                 
                 output = self.model.call_model(eval_messages)
-                # TODO：这块为了鲁棒，稍微考虑改一下？
                 judge = int(extract_xml(output, "judge") or -2)
                 conf = float(extract_xml(output, "conf") or -2)
                 print(f"output = {output} judge = {judge} conf = {conf} gen_type = {sample.get('gen_type', 'N/A')}")
                 
-                # 更新样本
                 sample["judge"] = judge
                 sample["conf"] = conf
                 sample["status"] = (judge == sample["gen_type"])
@@ -304,7 +278,6 @@ class EvalEXP:
                 else:
                     failure_list.append(sample)
             
-            # E. 动态更新集�?
             if success_list:
                 new_success = Dataset.from_list(success_list)
                 self.success = concatenate_datasets([self.success, new_success]) if len(self.success) > 0 else new_success
@@ -313,14 +286,12 @@ class EvalEXP:
                 new_failure = Dataset.from_list(failure_list)
                 self.failure = concatenate_datasets([self.failure, new_failure]) if len(self.failure) > 0 else new_failure
             
-            # F. 保存轮次结果
             self.save_round(it + 1, output_dir, exp, success_list, failure_list)
             it += 1
             
         return exp
 
 def main():
-    # 使用文件顶部常量而非命令行参�?
     system = EvalEXP()
     
     system.opt_exp_context(
