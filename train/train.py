@@ -275,19 +275,13 @@ def main():
     system = IntegratedTrainOptimize(verbose=False, log_samples=False)
     
     # Run the default training pipeline.
-    results = system.run_full_pipeline(
+    system.run_full_pipeline(
         train_params={
             'learning_rate': 1e-5,
             'num_train_epochs': 1,
             'per_device_train_batch_size': 2,
         }
     )
-    
-    # Save the pipeline output for later inspection.
-    with open("optimization_results.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
-    
-    print("Optimization results saved to optimization_results.json")
 
 
 if __name__ == "__main__":
