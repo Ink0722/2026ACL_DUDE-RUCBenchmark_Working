@@ -1,9 +1,11 @@
-import os
-import json
 import datetime
+import json
+import os
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from .llm_agent import ReActAgent
+from src.config import SETTINGS
 from src.model import Local
 from src.parser import extract_xml
 from src.template import system_prompt
@@ -13,32 +15,103 @@ from src.template import system_prompt
 _current_env: Optional["ClickEnv"] = None
 _evaluator: Optional[Local] = None
 
-# DUDE的ecaluator模型和agent模型配置
 EVALUATOR_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
-DEFAULT_ADAPTER_DIR = "Qwen3-VL-2B-Click-NewPlan1"
-
-# 基础的配置
-DATA_FILE = "use_deception.json"
-OUTPUT_DIR = "agent_result"
+DEFAULT_INFERENCE_JSON = "use_deception.json"
 MAX_AGENT_STEPS = 3
 DEFAULT_MAX_SAMPLES = 200
-RUNNER_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(RUNNER_DIR)
-
+PROJECT_ROOT = SETTINGS.project_root
 
 AGENT_MODEL_NAME = "Qwen/Qwen3-VL-4B-Instruct"
 
 
+def _resolve_path(path_str: str) -> Path:
+    path = Path(path_str)
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / path
+
+
+def _latest_matching_path(root: Path, prefix: str, suffix: str = "") -> Path:
+    if not root.exists():
+        raise FileNotFoundError(f"Directory does not exist: {root}")
+
+    matches = [p for p in root.iterdir() if p.name.startswith(prefix) and p.name.endswith(suffix)]
+    if not matches:
+        raise FileNotFoundError(f"No matching path found in {root} for prefix={prefix!r}, suffix={suffix!r}")
+
+    matches.sort(key=lambda p: p.name, reverse=True)
+    return matches[0]
+
+
+def _latest_evaluator_dir() -> Path:
+    return _latest_matching_path(_resolve_path(SETTINGS.stage1_root), "evaluator_")
+
+
+def resolve_evaluator_model_path() -> Optional[str]:
+    try:
+        return str(_latest_evaluator_dir())
+    except FileNotFoundError:
+        return None
+
+
+def resolve_inference_data_path() -> Path:
+    preferred = _resolve_path(str(Path(SETTINGS.dataset_root) / DEFAULT_INFERENCE_JSON))
+    if preferred.exists():
+        return preferred
+    return _resolve_path(SETTINGS.data_path)
+
+
+def resolve_image_path(image_path: str) -> Path:
+    raw_path = Path(str(image_path).strip())
+    if raw_path.is_absolute():
+        return raw_path
+
+    cleaned = str(raw_path).replace("\\", "/")
+    if cleaned.startswith("./"):
+        cleaned = cleaned[2:]
+    rel_path = Path(cleaned)
+
+    dataset_root = _resolve_path(SETTINGS.dataset_root)
+    images_dir = _resolve_path(SETTINGS.images_dir)
+    data_root = PROJECT_ROOT / "data"
+    dataset_name = Path(SETTINGS.dataset_root).name
+
+    candidates: List[Path] = []
+
+    if cleaned.startswith("images/"):
+        candidates.append(dataset_root / rel_path)
+    elif cleaned.startswith(f"{dataset_name}/"):
+        candidates.append(data_root / rel_path)
+    elif "images/" in cleaned:
+        candidates.append(data_root / rel_path)
+        image_tail = cleaned.split("images/", 1)[1]
+        candidates.append(images_dir / Path(image_tail))
+    else:
+        candidates.append(images_dir / rel_path)
+        candidates.append(dataset_root / rel_path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return candidates[0]
+
+
+def resolve_output_path(timestamp: str) -> Path:
+    output_root = _resolve_path(SETTINGS.inference_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    return output_root / f"gui_agent_results_{timestamp}.json"
+
+
 def get_evaluator() -> Local:
-    
     """Lazily initialize the Stage 1 evaluator used to judge clicks."""
 
     global _evaluator
     if _evaluator is not None:
         return _evaluator
 
-    model_path = DEFAULT_ADAPTER_DIR if (DEFAULT_ADAPTER_DIR and os.path.exists(DEFAULT_ADAPTER_DIR)) else None
-    
+    model_path = resolve_evaluator_model_path()
+
     _evaluator = Local(
         model_name=EVALUATOR_MODEL_ID,
         SYSTEM_PROMPT=system_prompt,
@@ -47,13 +120,12 @@ def get_evaluator() -> Local:
     )
     return _evaluator
 
-# 这里考虑解析逻辑是否需要收成一个小函数
+
 def run_eval_for_click(
     image_path: str,
     user_goal: str,
     click_xy: Tuple[float, float],
 ) -> Tuple[Optional[int], Optional[float], str]:
-    
     """Run the evaluator on a single click and return parsed outputs.
 
     Returns: (judge, conf, raw_output)
@@ -109,7 +181,6 @@ def run_eval_for_click(
 
 
 class ClickEnv:
-    
     """Click environment for a single sample.
 
     Responsibilities:
@@ -128,7 +199,6 @@ class ClickEnv:
         self.image_height = entry["image_height"]
         self.correct_box = entry["correct_box"]["bbox"]  # [x1, y1, x2, y2]
 
-        # Extract the user message for evaluator input.
         user_goal = ""
         for m in entry.get("messages", []):
             if m.get("role") == "user":
@@ -136,27 +206,20 @@ class ClickEnv:
                 break
         self.user_goal: str = str(user_goal)
 
-        # Runtime state.
         self.try_count: int = 0
         self.last_click: Optional[Tuple[float, float]] = None
 
-        # Record evaluator judgments for each step.
         self.judges: List[int] = []
         self.judge_confs: List[float] = []
         self.last_judge: Optional[int] = None
 
-        # Resolve the real image path from the relative dataset path.
-        rel_path = entry["image_path"]
-        if rel_path.startswith("./"):
-            rel_path = rel_path[2:]
-        self.image_path = os.path.join(PROJECT_ROOT, "data", rel_path)
-    
+        self.image_path = str(resolve_image_path(entry["image_path"]))
+
     def inside_box(self, x: float, y: float) -> bool:
         x1, y1, x2, y2 = self.correct_box
         return (x1 <= x <= x2) and (y1 <= y <= y2)
 
     def click(self, x: float, y: float) -> str:
-        
         """Tool-facing click handler that returns observation JSON to the LLM.
 
         The JSON includes:
@@ -166,11 +229,10 @@ class ClickEnv:
         - click: current click coordinates
         - message: a short natural-language hint for the LLM
         """
-        
+
         self.try_count += 1
         self.last_click = (float(x), float(y))
 
-        # Ask the evaluator to judge the current click.
         judge, conf, _ = run_eval_for_click(self.image_path, self.user_goal, self.last_click)
         self.last_judge = judge
         if judge is not None:
@@ -182,16 +244,14 @@ class ClickEnv:
         done: bool = False
 
         if judge == 1:
-            # The evaluator marked this click as correct, so stop immediately.
             status = "hit"
             done = True
             msg = "Evaluator judge=1 (correct). You should output final_answer now."
         else:
-            # The click was not accepted, including 0 / -1 / parse failure.
             if self.try_count >= self.max_tries:
                 status = "max_retry"
                 done = True
-                msg = "Max retry reached. Do NOT call action again. Use this last click in final_answer."  
+                msg = "Max retry reached. Do NOT call action again. Use this last click in final_answer."
             else:
                 status = "miss"
                 done = False
@@ -215,7 +275,6 @@ class ClickEnv:
 
 
 def click(x: Optional[float] = None, y: Optional[float] = None, **kwargs) -> str:
-    
     """Tool function exposed to ReActAgent.
 
     Conventions:
@@ -224,7 +283,6 @@ def click(x: Optional[float] = None, y: Optional[float] = None, **kwargs) -> str
     - The function delegates to _current_env.click and returns JSON observation text.
     """
 
-    # Support click(start_box="(1487,310)") as well as click(x=..., y=...).
     if (x is None or y is None) and "start_box" in kwargs:
         raw = str(kwargs.get("start_box", "")).strip()
         if raw.startswith("(") and raw.endswith(")"):
@@ -246,16 +304,22 @@ def click(x: Optional[float] = None, y: Optional[float] = None, **kwargs) -> str
 
     global _current_env
     if _current_env is None:
-        return json.dumps({
-            "status": "error",
-            "message": "Environment is not initialized. This is a bug in the driver script.",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "status": "error",
+                "message": "Environment is not initialized. This is a bug in the driver script.",
+            },
+            ensure_ascii=False,
+        )
 
     if x is None or y is None:
-        return json.dumps({
-            "status": "error",
-            "message": "Invalid click arguments. Expected click(x, y) or click(start_box='(x,y)').",
-        }, ensure_ascii=False)
+        return json.dumps(
+            {
+                "status": "error",
+                "message": "Invalid click arguments. Expected click(x, y) or click(start_box='(x,y)').",
+            },
+            ensure_ascii=False,
+        )
 
     return _current_env.click(float(x), float(y))
 
@@ -300,10 +364,8 @@ def run_one_sample(
     print("\n===============================")
     print(f"Sample {idx} / id={entry['id']}")
 
-    # Build the environment for the current sample.
     _current_env = ClickEnv(entry)
 
-    # Reset evaluator token accounting for this sample.
     evaluator_instance = get_evaluator()
     evaluator_instance.total_tokens = 0
 
@@ -313,23 +375,20 @@ def run_one_sample(
     else:
         image_paths = [_current_env.image_path]
 
-    # Instantiate the ReAct agent.
     agent = ReActAgent(
         tools=tools,
         model=AGENT_MODEL_NAME,
         project_directory=base_dir,
-        device=None,  # Let the backend choose cuda/cpu automatically.
+        device=None,
     )
 
     user_input = build_user_input(entry)
     _ = agent.run(user_input=user_input, image_paths=image_paths, max_steps=MAX_AGENT_STEPS)
 
-    # Evaluator-based success/failure using the last judge value.
     last_judge = _current_env.last_judge
     in_correct_eval = last_judge == 1
     in_deceptive_eval = last_judge == -1
 
-    # Accumulate token usage from both the agent and evaluator.
     agent_tokens = agent.client.total_tokens
     eval_tokens = evaluator_instance.total_tokens
     sample_total_tokens = agent_tokens + eval_tokens
@@ -355,12 +414,12 @@ def run_one_sample(
 
     return result_item
 
+
 def finalize_metrics(
     results: List[Dict[str, Any]],
     out_path: str,
     start_time: datetime.datetime,
 ) -> Tuple[Dict[str, Any], str]:
-    
     """Compute summary metrics directly from sample-level results."""
 
     num_samples = len(results)
@@ -387,14 +446,15 @@ def finalize_metrics(
         cs = category_stats[category]
         cs["num_samples"] += 1
         cs["total_steps"] += float(result.get("tries", 0))
-        if result.get("in_correct_eval"):cs["num_task_completed_eval"] += 1
-        if result.get("in_deceptive_eval"):cs["num_deceptive_fail_eval"] += 1
-    
+        if result.get("in_correct_eval"):
+            cs["num_task_completed_eval"] += 1
+        if result.get("in_deceptive_eval"):
+            cs["num_deceptive_fail_eval"] += 1
+
     tcr = (num_task_completed_eval / num_samples) if num_samples > 0 else 0.0
-    dfr = (num_deceptive_fail_eval / num_samples) if num_samples > 0 else 0.0,
+    dfr = (num_deceptive_fail_eval / num_samples) if num_samples > 0 else 0.0
     avg_steps = total_steps / num_samples if num_samples > 0 else 0.0
     avg_tokens = total_tokens_all_samples / num_samples if num_samples > 0 else 0.0
-
 
     per_category_metrics = {}
     for category, cs in category_stats.items():
@@ -429,36 +489,35 @@ def finalize_metrics(
 
     return output_payload, duration
 
+
 def run_gui_agent_on_small_deception(
     max_samples: int = 5,
 ) -> None:
-    
     """Main entrypoint.
 
-    - Read data/use_deceptioncopy.json
+    - Read the default inference JSON under the dataset root
     - Run ReActAgent on the first max_samples entries
-    - Save final clicks and retry counts to agent_result
+    - Save final clicks and retry counts to the inference output directory
     """
 
     project_root = PROJECT_ROOT
-    data_path = os.path.join(project_root, "data", DATA_FILE)
+    data_path = resolve_inference_data_path()
 
     with open(data_path, "r", encoding="utf-8") as f:
         data: List[Dict[str, Any]] = json.load(f)
 
-    os.makedirs(os.path.join(project_root, OUTPUT_DIR), exist_ok=True)
     results: List[Dict[str, Any]] = []
 
     start_time = datetime.datetime.now()
     timestamp = start_time.strftime("%Y%m%d_%H%M%S")
-    out_path = os.path.join(project_root, OUTPUT_DIR, f"gui_agent_results_{timestamp}.json")
+    out_path = resolve_output_path(timestamp)
 
     tools = [click]
 
     for idx, entry in enumerate(data[:max_samples]):
-        result_item = run_one_sample(entry=entry, idx=idx, base_dir=project_root, tools=tools)
+        result_item = run_one_sample(entry=entry, idx=idx, base_dir=str(project_root), tools=tools)
         results.append(result_item)
-    output_payload, duration_hms = finalize_metrics(results=results,out_path=out_path,start_time=start_time)
+    output_payload, duration_hms = finalize_metrics(results=results, out_path=str(out_path), start_time=start_time)
 
     print("\nFinal metrics:")
     print(json.dumps(output_payload["metrics"], ensure_ascii=False, indent=2))
@@ -466,10 +525,5 @@ def run_gui_agent_on_small_deception(
     print("Results and metrics saved to:", out_path)
 
 
-# Simple CLI entrypoint for running a subset of samples.
 if __name__ == "__main__":
     run_gui_agent_on_small_deception(max_samples=DEFAULT_MAX_SAMPLES)
-
-
-
-

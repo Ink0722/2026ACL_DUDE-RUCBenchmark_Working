@@ -5,10 +5,20 @@ import os
 from datasets import Dataset
 from PIL import Image
 
+from src.config import SETTINGS
+
 from .rule import generate_clicks, generate_clicks_2, generate_empty_clicks
 
 
-def load_local_dataset(ann_path="data/Deception.json", images_dir="data/images", load_images=True, Train=True):
+def load_local_dataset(
+    ann_path: str | None = None,
+    images_dir: str | None = None,
+    load_images=True,
+    Train=True,
+):
+    ann_path = ann_path or SETTINGS.data_path
+    images_dir = images_dir or SETTINGS.images_dir
+
     ann_dir = os.path.dirname(os.path.abspath(ann_path))
     content = open(ann_path, "r", encoding="utf-8").read().lstrip("\ufeff")
     initrecords = json.loads(content)

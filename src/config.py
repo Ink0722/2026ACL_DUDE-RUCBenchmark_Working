@@ -24,9 +24,13 @@ def _get_default_device() -> str:
 @dataclass(frozen=True)
 class Settings:
     project_root: Path
+    dataset_root: str
     data_path: str
     images_dir: str
     output_dir: str
+    stage1_root: str
+    stage2_root: str
+    inference_root: str
     default_local_model: str
     default_eval_model: str
     default_device: str
@@ -38,9 +42,13 @@ class Settings:
 
 SETTINGS = Settings(
     project_root=PROJECT_ROOT,
-    data_path=os.getenv("DATA_PATH", "data/annotations/annotation.jsonl"),
-    images_dir=os.getenv("IMAGES_DIR", "data/images"),
+    dataset_root=os.getenv("DATASET_ROOT", "data/Real-UI-Clickboxes"),
+    data_path=os.getenv("DATA_PATH", "data/Real-UI-Clickboxes/annotations.json"),
+    images_dir=os.getenv("IMAGES_DIR", "data/Real-UI-Clickboxes/images"),
     output_dir=os.getenv("OUTPUT_DIR", "outputs"),
+    stage1_root=os.getenv("STAGE1_ROOT", "data/stage1"),
+    stage2_root=os.getenv("STAGE2_ROOT", "data/stage2"),
+    inference_root=os.getenv("INFERENCE_ROOT", "data/inference"),
     default_local_model=os.getenv("DEFAULT_LOCAL_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct"),
     default_eval_model=os.getenv("DEFAULT_EVAL_MODEL", "glm-4.6v"),
     default_device=_get_default_device(),

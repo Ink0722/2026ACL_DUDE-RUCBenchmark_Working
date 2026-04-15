@@ -1,35 +1,35 @@
-import os
-import time
 import json
+import os
 
 import torch
 from datetime import datetime
-
-from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
-from peft import LoraConfig, get_peft_model
-from trl import GRPOConfig, GRPOTrainer, PeftModel
 from types import MethodType
 
-from train.reward import hybrid_label_confidence_reward
+from peft import LoraConfig, PeftModel, get_peft_model
+from transformers import AutoProcessor, Qwen3VLForConditionalGeneration
+from trl import GRPOConfig, GRPOTrainer
+
+from src.config import SETTINGS
+from src.model import Local
 from train.datasets import load_local_dataset
 from train.formatter import make_conversation
-from src.model import Local
-from src.config import SETTINGS
+from train.reward import hybrid_label_confidence_reward
 
 
 DEFAULT_QWEN3_TRAIN_MODEL = "Qwen/Qwen3-VL-2B-Thinking"
 
 
 class IntegratedTrainOptimize:
-    def __init__(self,
-                 model_id=None,
-                 data_path=SETTINGS.data_path,
-                 images_dir=SETTINGS.images_dir,
-                 output_dir=os.path.join(str(SETTINGS.project_root), "data", "train"),
-                 device=SETTINGS.default_device,
-                 verbose=False,
-                 log_samples=False):
-
+    def __init__(
+        self,
+        model_id=None,
+        data_path=SETTINGS.data_path,
+        images_dir=SETTINGS.images_dir,
+        output_dir=SETTINGS.stage1_root,
+        device=SETTINGS.default_device,
+        verbose=False,
+        log_samples=False,
+    ):
         self.model_id = model_id or DEFAULT_QWEN3_TRAIN_MODEL
         self.data_path = data_path
         self.images_dir = images_dir
@@ -38,18 +38,17 @@ class IntegratedTrainOptimize:
         self.verbose = verbose
         self.log_samples = log_samples
 
-        # Dataset containers.
         self.dataset = None
         self.train_dataset = None
         self.test_dataset = None
 
-        # Model and processor handles.
         self.model = None
         self.processor = None
 
-        # Path to the trained checkpoint produced by this run.
         self.trained_model_path = None
         self.stage1_snapshot_path = None
+        self.recorded_samples_path = None
+        self.run_timestamp = None
 
     def _log(self, message: str) -> None:
         print(message)
@@ -77,34 +76,41 @@ class IntegratedTrainOptimize:
             kwargs["device_map"] = "auto"
         return kwargs
 
+    def _ensure_run_timestamp(self) -> str:
+        if self.run_timestamp is None:
+            self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return self.run_timestamp
+
+    def _build_model_dir(self) -> str:
+        ts = self._ensure_run_timestamp()
+        return os.path.join(self.output_dir, f"evaluator_{ts}")
+
+    def _build_stage1_result_path(self) -> str:
+        ts = self._ensure_run_timestamp()
+        return os.path.join(self.output_dir, f"stage1_{ts}.jsonl")
+
+    def _build_record_path(self) -> str:
+        ts = self._ensure_run_timestamp()
+        return os.path.join(self.output_dir, f"record_{ts}.jsonl")
+
     def load_data(self, test_size=0.2, seed=42):
         """Load the dataset, split it, and prepare training conversations."""
-
         self._log("Loading dataset...")
         self.dataset = load_local_dataset(self.data_path, self.images_dir, load_images=False, Train=True)
 
-        # An explicit shuffle is unnecessary here because train_test_split already handles the split order.
-        # self.dataset = shuffle(self.dataset, seed)
-
-        # Split the dataset into train and test partitions.
         split_dataset = self.dataset.train_test_split(test_size=test_size, seed=seed)
         self._log_sample("Train sample preview:", split_dataset["train"][0])
         self._log_sample("Test sample preview:", split_dataset["test"][0])
-        self.train_dataset = split_dataset['train']
-        self.test_dataset = split_dataset['test']
+        self.train_dataset = split_dataset["train"]
+        self.test_dataset = split_dataset["test"]
         self._debug(f"Train split size: {len(self.train_dataset)}")
         self._debug(f"Test split size: {len(self.test_dataset)}")
 
-        # Convert the raw records into the conversation format expected by training.
         self.train_dataset = self.train_dataset.map(make_conversation)
         self._log_sample("Mapped training sample preview:", self.train_dataset[0])
 
-        # Save a JSONL snapshot of the training split for reward-time bookkeeping.
-        out_dir = os.path.join(self.output_dir, "stage1_result")
-        os.makedirs(out_dir, exist_ok=True)
-        ts = int(time.time())
-        fname = f"stage1_result{ts}.jsonl"
-        out_path = os.path.join(out_dir, fname)
+        os.makedirs(self.output_dir, exist_ok=True)
+        out_path = self._build_stage1_result_path()
         with open(out_path, "w", encoding="utf-8") as fw:
             for r in self.train_dataset:
                 rec_copy = dict(r) if isinstance(r, dict) else {"record": r}
@@ -119,10 +125,8 @@ class IntegratedTrainOptimize:
         """Set up the base model, processor, and LoRA adapters."""
         self._log("Setting up model and processor...")
 
-        # Load the processor first so it can be shared by training and reward computation.
         self.processor = AutoProcessor.from_pretrained(self.model_id, use_fast=True, padding_side="left")
 
-        # Load the base multimodal model. Prefer flash attention when it is available.
         model_load_kwargs = self._get_model_load_kwargs()
         try:
             self.model = Qwen3VLForConditionalGeneration.from_pretrained(
@@ -133,7 +137,6 @@ class IntegratedTrainOptimize:
             self._debug(f"Falling back to the default attention backend: {exc}")
             self.model = Qwen3VLForConditionalGeneration.from_pretrained(**model_load_kwargs)
 
-        # Attach LoRA adapters to the attention projection layers.
         lora_config = LoraConfig(
             task_type="CAUSAL_LM",
             r=8,
@@ -146,7 +149,6 @@ class IntegratedTrainOptimize:
         if self.verbose:
             self.model.print_trainable_parameters()
 
-        # Patch batch_decode so invalid token ids do not crash post-processing.
         def safe_batch_decode(self, sequences, **kwargs):
             pad_id = self.tokenizer.pad_token_id or 0
             vocab_size = len(self.tokenizer)
@@ -177,44 +179,55 @@ class IntegratedTrainOptimize:
 
         self.processor.batch_decode = MethodType(safe_batch_decode, self.processor)
 
-    def train_model(self,
-                   learning_rate=1e-5,
-                   num_train_epochs=1,
-                   per_device_train_batch_size=2,
-                   num_generations=2,
-                   max_completion_length=512,
-                   max_prompt_length=8192,
-                   logging_steps=10,
-                   save_steps=10):
+    def train_model(
+        self,
+        learning_rate=1e-5,
+        num_train_epochs=1,
+        per_device_train_batch_size=2,
+        num_generations=2,
+        max_completion_length=512,
+        max_prompt_length=8192,
+        logging_steps=10,
+        save_steps=10,
+    ):
         """Train the model with GRPO and save the resulting checkpoint."""
         self._log("Starting model training...")
 
-        # Create a timestamped JSONL file for reward-time sample logging.
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        recorded_basename = f"recorded_samples_{ts}.jsonl"
-        recorded_path = os.path.join(self.output_dir, recorded_basename)
         os.makedirs(self.output_dir, exist_ok=True)
+        ts = self._ensure_run_timestamp()
+        recorded_path = self._build_record_path()
+        model_dir = self._build_model_dir()
+        self.recorded_samples_path = recorded_path
+
         self._debug(
             f"Training config: epochs={num_train_epochs}, batch_size={per_device_train_batch_size}, lr={learning_rate}"
         )
         self._debug(f"Reward samples will be recorded to: {recorded_path}")
-        # Use a named wrapper instead of functools.partial so GRPOTrainer can read __name__.
-        # Capture the snapshot path in the closure so worker processes can still access it.
-        snapshot = self.stage1_snapshot_path
-        def _reward_wrapper(*a, **kw):
-            return hybrid_label_confidence_reward(*a, recorded_samples_path=recorded_path, snapshot_path=snapshot, run_ts=ts, **kw)
 
-        # Preserve a readable function name for trainer-side logging and serialization.
+        snapshot = self.stage1_snapshot_path
+
+        def _reward_wrapper(*a, **kw):
+            return hybrid_label_confidence_reward(
+                *a,
+                recorded_samples_path=recorded_path,
+                snapshot_path=snapshot,
+                run_ts=ts,
+                **kw,
+            )
+
         try:
-            _reward_wrapper.__name__ = getattr(hybrid_label_confidence_reward, "__name__", "hybrid_label_confidence_reward")
+            _reward_wrapper.__name__ = getattr(
+                hybrid_label_confidence_reward,
+                "__name__",
+                "hybrid_label_confidence_reward",
+            )
         except Exception:
             pass
 
         reward_funcs = [_reward_wrapper]
 
-        # Configure the GRPO training run.
         training_args = GRPOConfig(
-            output_dir=self.output_dir,
+            output_dir=model_dir,
             learning_rate=learning_rate,
             remove_unused_columns=False,
             num_train_epochs=num_train_epochs,
@@ -237,11 +250,10 @@ class IntegratedTrainOptimize:
         )
 
         trainer.train()
+        trainer.save_model(model_dir)
+        self.trained_model_path = model_dir
 
-        trainer.save_model(self.output_dir)
-        self.trained_model_path = self.output_dir
-
-        self._log(f"Model training completed. Model saved to {self.output_dir}")
+        self._log(f"Model training completed. Model saved to {model_dir}")
 
     def load_trained_model(self, model_path=None):
         """Load a trained checkpoint for downstream optimization or evaluation."""
@@ -253,14 +265,12 @@ class IntegratedTrainOptimize:
 
         self._log(f"Loading trained model from {model_path}...")
 
-        # Build a local agent instance and then attach the finetuned weights.
         self.agent = Local(
             model_name=self.model_id,
             SYSTEM_PROMPT="",
-            tools=[]
+            tools=[],
         )
 
-        # Load the trained adapter weights on top of the base model.
         base_model = Qwen3VLForConditionalGeneration.from_pretrained(
             **self._get_model_load_kwargs(),
         )
@@ -268,39 +278,28 @@ class IntegratedTrainOptimize:
 
         self._log("Trained model loaded successfully")
 
-    def run_full_pipeline(self,train_params=None):
+    def run_full_pipeline(self, train_params=None):
         """Run the end-to-end training pipeline."""
         self._log("Starting full training pipeline...")
 
-        # 1. Load the dataset.
         self.load_data()
-
-        # 2. Set up the model and processor.
         self.setup_model()
 
-        # 3. Train the model.
         train_params = train_params or {}
         self.train_model(**train_params)
 
 
 def main():
     """Example entry point for the integrated training pipeline."""
-    # Create the integrated training system.
     system = IntegratedTrainOptimize(verbose=False, log_samples=False)
-
-    # Run the default training pipeline.
     system.run_full_pipeline(
         train_params={
-            'learning_rate': 1e-5,
-            'num_train_epochs': 1,
-            'per_device_train_batch_size': 2,
+            "learning_rate": 1e-5,
+            "num_train_epochs": 1,
+            "per_device_train_batch_size": 2,
         }
     )
 
 
 if __name__ == "__main__":
     main()
-
-
-
-
