@@ -1,36 +1,36 @@
-# Don?t Click That: Teaching Web Agents to Resist Deceptive Interfaces
+# Don't Click That: Teaching Web Agents to Resist Deceptive Interfaces
 <p align="center">
-  <a href="TODO"><img src="https://img.shields.io/badge/??-Paper (ACL 2026)-blue" height="23"></a>
-  <a href="https://huggingface.co/datasets/Ink0722/Real-UI-Clickboxes"><img src="https://img.shields.io/badge/??-Data-green" height="23"></a>
+  <a href="TODO"><img src="https://img.shields.io/badge/Paper-ACL%202026-blue" height="23"></a>
+  <a href="https://huggingface.co/datasets/Ink0722/Real-UI-Clickboxes"><img src="https://img.shields.io/badge/Data-Real--UI--Clickboxes-green" height="23"></a>
 </p>
 
-Codebase for the ACL 2026 submission on Don?t Click That: Teaching Web Agents to Resist Deceptive Interfaces. The repository focuses on training and evaluating web-browsing click judges under deceptive UI conditions, including Stage 1 evaluator training, Stage 2 experience optimization, and agent-side inference with an evaluator in the loop.
+Codebase for the ACL 2026 submission on Don't Click That: Teaching Web Agents to Resist Deceptive Interfaces. The repository focuses on training and evaluating web-browsing click judges under deceptive UI conditions, including Stage 1 evaluator training, Stage 2 experience optimization, and agent-side inference with an evaluator in the loop.
 
 ## Repository Layout
 
 ```text
 .
-??? agent_runner/
-?   ??? llm_agent.py
-?   ??? prompt_template.py
-?   ??? run_agent_with_evaluator.py   # Inference / evaluation runner
-??? data/
-?   ??? download_dataset.py           # Recommended dataset download helper
-??? src/
-?   ??? config.py                     # Centralized settings and environment loading
-?   ??? model.py                      # Model wrappers and backend builders
-?   ??? parser.py                     # Output parsing helpers
-?   ??? template.py                   # Evaluation / summarization prompt templates
-??? train/
-?   ??? stage1.py                     # Stage 1 evaluator training
-?   ??? stage2.py                     # Stage 2 experience optimization
-?   ??? datasets.py
-?   ??? formatter.py
-?   ??? reward.py
-?   ??? rule.py
-??? requirements.txt
-??? .gitignore
-??? README.md
+|-- agent_runner/
+|   |-- llm_agent.py
+|   |-- prompt_template.py
+|   `-- run_agent_with_evaluator.py   # Inference / evaluation runner
+|-- data/
+|   `-- download_dataset.py           # Recommended dataset download helper
+|-- src/
+|   |-- config.py                     # Centralized settings and environment loading
+|   |-- model.py                      # Model wrappers and backend builders
+|   |-- parser.py                     # Output parsing helpers
+|   `-- template.py                   # Evaluation / summarization prompt templates
+|-- train/
+|   |-- stage1.py                     # Stage 1 evaluator training
+|   |-- stage2.py                     # Stage 2 experience optimization
+|   |-- datasets.py
+|   |-- formatter.py
+|   |-- reward.py
+|   `-- rule.py
+|-- requirements.txt
+|-- .gitignore
+`-- README.md
 ```
 
 ## Environment
@@ -117,7 +117,7 @@ This downloads the dataset into:
 
 ```text
 data/
-??? Real-UI-Clickboxes/
+`-- Real-UI-Clickboxes/
 ```
 
 The downloader uses the Hugging Face dataset repository directly and writes it to a fixed local directory, so users do not need to manually manage cache paths or rename downloaded folders.
@@ -132,10 +132,10 @@ After download, the expected dataset layout is:
 
 ```text
 data/
-??? Real-UI-Clickboxes/
-    ??? README.md
-    ??? annotations.json or dataset JSON file
-    ??? images/
+`-- Real-UI-Clickboxes/
+    |-- README.md
+    |-- annotations.json or dataset JSON file
+    `-- images/
 ```
 
 If your annotation filename differs from the default expected by your local setup, update `DATA_PATH` in `.env`.
