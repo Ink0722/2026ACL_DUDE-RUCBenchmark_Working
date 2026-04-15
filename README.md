@@ -1,34 +1,34 @@
-ï»¿
 
-# Donâ€™t Click That: Teaching Web Agents to Resist Deceptive Interfaces
+
+# Don¡¯t Click That: Teaching Web Agents to Resist Deceptive Interfaces
 <p align="center">
-  <!-- <a href="https://xiaowu0162.github.io/long-mem-eval/"><img src="https://img.shields.io/badge/ðŸŒ-Website-red" height="23"></a> -->
-  <a href="TODO"><img src="https://img.shields.io/badge/ðŸ“-Paper (ACL 2026)-blue" height="23"></a>
-  <a href="https://huggingface.co/datasets/Ink0722/RUC" ><img src="https://img.shields.io/badge/ðŸ¤—-Data-green" height="23"></a>
+  <!-- <a href="https://xiaowu0162.github.io/long-mem-eval/"><img src="https://img.shields.io/badge/??-Website-red" height="23"></a> -->
+  <a href="TODO"><img src="https://img.shields.io/badge/??-Paper (ACL 2026)-blue" height="23"></a>
+  <a href="https://huggingface.co/datasets/Ink0722/RUC" ><img src="https://img.shields.io/badge/??-Data-green" height="23"></a>
 </p>
 
-Codebase for the ACL 2026 submission on Donâ€™t Click That: Teaching Web Agents to Resist Deceptive Interfaces. The repository focuses on evaluating and improving web-browsing click judgments under deceptive UI conditions, including local multimodal evaluators, GLM-based experience summarization, and supporting data-processing scripts.
+Codebase for the ACL 2026 submission on Don¡¯t Click That: Teaching Web Agents to Resist Deceptive Interfaces. The repository focuses on evaluating and improving web-browsing click judgments under deceptive UI conditions, including local multimodal evaluators, GLM-based experience summarization, and supporting data-processing scripts.
 
 ## Repository Layout
 
 ```text
 .
-â”œâ”€â”€ src/
-â”‚   â”œâ”€â”€ config.py                 # Centralized settings and environment loading
-â”‚   â”œâ”€â”€ core/                     # Model backends, agent logic, parsing, rewards
-â”‚   â”œâ”€â”€ evaluator/                # Prompt templates for evaluation/summarization
-â”‚   â””â”€â”€ utils/                    # Dataset loading, formatting, click generation
-â”œâ”€â”€ train.py                      # Stage 1 training entrypoint
-â”œâ”€â”€ stage1_inference.py           # Stage 1 inference / snapshot generation
-â”œâ”€â”€ stage2.py                     # Stage 2 iterative experience optimization
-â”œâ”€â”€ run_agent.py                  # Agent runner
-â”œâ”€â”€ run_agent_with_evalutor.py    # Agent runner with evaluator
-â”œâ”€â”€ nom_results.py                # Result aggregation / nominal analysis
-â”œâ”€â”€ opt_exp.py                    # Experience optimization experiments
-â”œâ”€â”€ main.py                       # Minimal GLM evaluation example
-â”œâ”€â”€ requirements.txt
-â”œâ”€â”€ .env.example
-â””â”€â”€ README.md
+©À©¤©¤ src/
+©¦   ©À©¤©¤ config.py                 # Centralized settings and environment loading
+©¦   ©À©¤©¤ core/                     # Model backends, agent logic, parsing, rewards
+©¦   ©À©¤©¤ evaluator/                # Prompt templates for evaluation/summarization
+©¦   ©¸©¤©¤ utils/                    # Dataset loading, formatting, click generation
+©À©¤©¤ stage1.py                     # Stage 1 training entrypoint
+©À©¤©¤ stage1_inference.py           # Stage 1 inference / snapshot generation
+©À©¤©¤ stage2.py                     # Stage 2 iterative experience optimization
+©À©¤©¤ run_agent.py                  # Agent runner
+©À©¤©¤ run_agent_with_evalutor.py    # Agent runner with evaluator
+©À©¤©¤ nom_results.py                # Result aggregation / nominal analysis
+©À©¤©¤ opt_exp.py                    # Experience optimization experiments
+©À©¤©¤ main.py                       # Minimal GLM evaluation example
+©À©¤©¤ requirements.txt
+©À©¤©¤ .env.example
+©¸©¤©¤ README.md
 ```
 
 ## Environment
@@ -98,9 +98,9 @@ Expected layout:
 
 ```text
 data/
-â”œâ”€â”€ annotations/
-â”‚   â””â”€â”€ annotation.jsonl
-â””â”€â”€ images/
+©À©¤©¤ annotations/
+©¦   ©¸©¤©¤ annotation.jsonl
+©¸©¤©¤ images/
 ```
 
 If your data file differs, update `DATA_PATH` and `IMAGES_DIR` in `.env`.
@@ -110,7 +110,7 @@ If your data file differs, update `DATA_PATH` and `IMAGES_DIR` in `.env`.
 ### 1. Train the evaluator
 
 ```bash
-python train.py
+python stage1.py
 ```
 
 ### 2. Run Stage 1 inference
@@ -149,4 +149,5 @@ If you use this repository, please cite the associated ACL 2026 paper. Add the f
 
 ## Runtime Notes
 - Local multimodal backends require CUDA GPU. CPU loading is intentionally disabled.
+
 
