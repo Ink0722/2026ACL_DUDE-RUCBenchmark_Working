@@ -1,6 +1,5 @@
 import random
 
-
 def generate_empty_clicks(sample, num=1, seed=42):
     random.seed(seed)
 
@@ -20,7 +19,6 @@ def generate_empty_clicks(sample, num=1, seed=42):
         null_clicks.append((click_x, click_y))
 
     return [{"coordinates": null_click, "label": -1} for null_click in null_clicks]
-
 
 def generate_clicks(sample):
     correct_bbox = sample["correct_box"]["bbox"]
@@ -42,7 +40,6 @@ def generate_clicks(sample):
         "benign": {"coordinates": benign_click, "label": 1},
         "deceptive": {"coordinates": deceptive_click, "label": -1},
     }
-
 
 def generate_clicks_2(sample):
     correct_bbox = sample["correct_box"]["bbox"]
