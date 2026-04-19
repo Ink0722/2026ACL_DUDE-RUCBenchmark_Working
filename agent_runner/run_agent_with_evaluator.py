@@ -15,13 +15,12 @@ from src.template import system_prompt
 _current_env: Optional["ClickEnv"] = None
 _evaluator: Optional[Local] = None
 
-EVALUATOR_MODEL_ID = "Qwen/Qwen3-VL-2B-Instruct"
 DEFAULT_INFERENCE_JSON = "use_deception.json"
 MAX_AGENT_STEPS = 3
 DEFAULT_MAX_SAMPLES = 200
 PROJECT_ROOT = SETTINGS.project_root
 
-AGENT_MODEL_NAME = "Qwen/Qwen3-VL-4B-Instruct"
+AGENT_MODEL_NAME = SETTINGS.default_agent_model
 
 
 def _resolve_path(path_str: str) -> Path:
@@ -113,7 +112,7 @@ def get_evaluator() -> Local:
     model_path = resolve_evaluator_model_path()
 
     _evaluator = Local(
-        model_name=EVALUATOR_MODEL_ID,
+        model_name=SETTINGS.default_eval_model,
         SYSTEM_PROMPT=system_prompt,
         tools=[],
         model_path=model_path,

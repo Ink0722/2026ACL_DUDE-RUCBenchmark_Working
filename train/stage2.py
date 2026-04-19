@@ -50,7 +50,7 @@ OUTPUT_ROOT = SETTINGS.stage2_root
 class EvalEXP:
     def __init__(
         self,
-        model_id=SETTINGS.default_local_model,
+        model_id=SETTINGS.default_eval_model,
         adapter_dir=DEFAULT_EVALUATOR_DIR,
         device=SETTINGS.default_device,
         api_key=None,

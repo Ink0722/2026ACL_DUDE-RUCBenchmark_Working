@@ -16,7 +16,7 @@ from train.formatter import make_conversation
 from train.reward import hybrid_label_confidence_reward
 
 
-DEFAULT_QWEN3_TRAIN_MODEL = "Qwen/Qwen3-VL-2B-Thinking"
+DEFAULT_QWEN3_TRAIN_MODEL = SETTINGS.default_eval_model
 
 
 class IntegratedTrainOptimize:

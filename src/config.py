@@ -31,13 +31,11 @@ class Settings:
     stage1_root: str
     stage2_root: str
     inference_root: str
-    default_local_model: str
+    default_agent_model: str
     default_eval_model: str
     default_device: str
     hf_endpoint: str | None
     zhipuai_api_key: str | None
-    chatanywhere_api_key: str | None
-    base_url: str | None
 
 
 SETTINGS = Settings(
@@ -48,21 +46,15 @@ SETTINGS = Settings(
     output_dir=os.getenv("OUTPUT_DIR", "outputs"),
     stage1_root=os.getenv("STAGE1_ROOT", "data/stage1"),
     stage2_root=os.getenv("STAGE2_ROOT", "data/stage2"),
-    inference_root=os.getenv("INFERENCE_ROOT", "data/inference"),
-    default_local_model=os.getenv("DEFAULT_LOCAL_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct"),
-    default_eval_model=os.getenv("DEFAULT_EVAL_MODEL", "glm-4.6v"),
+    inference_root=os.getenv("INFERENCE_ROOT", "Qwen/Qwen3-VL-4B-Thinking"),
+    default_eval_model=os.getenv("DEFAULT_EVAL_MODEL", "Qwen/Qwen3-VL-2B-Thinking"),
     default_device=_get_default_device(),
     hf_endpoint=os.getenv("HF_ENDPOINT"),
     zhipuai_api_key=os.getenv("ZHIPUAI_API_KEY"),
-    chatanywhere_api_key=os.getenv("CHATANYWHERE_API_KEY"),
-    base_url=os.getenv("BASE_URL"),
 )
 
 if SETTINGS.hf_endpoint and "HF_ENDPOINT" not in os.environ:
     os.environ["HF_ENDPOINT"] = SETTINGS.hf_endpoint
-
-if SETTINGS.chatanywhere_api_key and "CHATANYWHERE_API_KEY" not in os.environ:
-    os.environ["CHATANYWHERE_API_KEY"] = SETTINGS.chatanywhere_api_key
 
 
 def require_zhipuai_api_key(api_key: str | None = None) -> str:
