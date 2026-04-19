@@ -35,16 +35,6 @@ Recommended command:
 python data/download.py
 ```
 
-After download, the expected dataset layout is:
-
-```text
-data/
-`-- Real-UI-Clickboxes/
-    |-- README.md
-    |-- annotations.json or dataset JSON file
-    `-- images/
-```
-
 If your annotation filename differs from the default expected by your local setup, update `DATA_PATH` in `.env`.
 
 ### 2) 🧩 Configure environment variables
