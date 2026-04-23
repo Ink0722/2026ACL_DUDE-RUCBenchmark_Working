@@ -68,7 +68,7 @@ data/
 `-- Real-UI-Clickboxes/
 ```
 
-If your annotation filename differs from the default expected by your local setup, update `DATA_PATH` in `.env`.
+By default, Stage 1 training uses `train.json`, and agent-side inference uses `eval.json`.
 
 ### 3) Configure environment variables ⚙️
 
@@ -78,7 +78,7 @@ Create a local `.env` file to override defaults:
 
 ```env
 DATASET_ROOT=data/Real-UI-Clickboxes
-DATA_PATH=data/Real-UI-Clickboxes/annotations.json
+DATA_PATH=data/Real-UI-Clickboxes/train.json
 IMAGES_DIR=data/Real-UI-Clickboxes/images
 
 STAGE1_ROOT=data/stage1
@@ -112,6 +112,19 @@ Optional variables:
 - `DEFAULT_EVAL_MODEL`
 - `DEFAULT_DEVICE`
 - `HF_ENDPOINT`
+
+Recommended dataset layout:
+
+```text
+data/
+`-- Real-UI-Clickboxes/
+    |-- train.json
+    |-- eval.json
+    `-- images/
+```
+
+- `train.json` is used for Stage 1 training.
+- `eval.json` is used for agent-side inference and evaluation.
 
 ### 4) Train the evaluator (Stage 1) 🧠
 
@@ -196,8 +209,8 @@ By default, the runner:
 ## Data Notes 🧩
 
 - The recommended way to obtain the dataset is to use `python data/download.py`.
+- Stage 1 training reads `DATA_PATH`, which defaults to `data/Real-UI-Clickboxes/train.json`.
 - For agent-side inference, `agent_runner/run_agent_with_evaluator.py` first looks for `data/Real-UI-Clickboxes/eval.json`; if that file does not exist, it falls back to `DATA_PATH`.
-- If your local dataset JSON uses a different filename, update `DATA_PATH` in `.env`.
 
 ## Paper 📝
 

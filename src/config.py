@@ -41,7 +41,7 @@ class Settings:
 SETTINGS = Settings(
     project_root=PROJECT_ROOT,
     dataset_root=os.getenv("DATASET_ROOT", "data/Real-UI-Clickboxes"),
-    data_path=os.getenv("DATA_PATH", "data/Real-UI-Clickboxes/annotations.json"),
+    data_path=os.getenv("DATA_PATH", "data/Real-UI-Clickboxes/train.json"),
     images_dir=os.getenv("IMAGES_DIR", "data/Real-UI-Clickboxes/images"),
     output_dir=os.getenv("OUTPUT_DIR", "outputs"),
     stage1_root=os.getenv("STAGE1_ROOT", "data/stage1"),
