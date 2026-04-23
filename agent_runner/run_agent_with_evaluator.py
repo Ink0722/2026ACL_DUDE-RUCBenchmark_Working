@@ -15,7 +15,7 @@ from src.template import system_prompt
 _current_env: Optional["ClickEnv"] = None
 _evaluator: Optional[Local] = None
 
-DEFAULT_INFERENCE_JSON = "use_deception.json"
+DEFAULT_INFERENCE_JSON = "eval.json"
 MAX_AGENT_STEPS = 3
 DEFAULT_MAX_SAMPLES = 200
 PROJECT_ROOT = SETTINGS.project_root
