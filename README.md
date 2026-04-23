@@ -29,7 +29,6 @@ The figure below shows the overall framework of the paper at a glance.
 
 - `Paper` link: placeholder kept in the badge and in the section below until the official paper URL is public.
 - `BibTeX`: placeholder kept in the citation section until the final metadata is available.
-- `Checkpoints`: not included in this repository.
 
 ## Quickstart 🚀
 
