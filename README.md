@@ -6,9 +6,9 @@
 
 Codebase for the ACL 2026 submission on *Don't Click That: Teaching Web Agents to Resist Deceptive Interfaces*. This repository provides a full pipeline for training and evaluating web-browsing click judges under deceptive UI conditions.
 
-- Stage 1: evaluator training
-- Stage 2: experience optimization with summarized feedback
-- Inference: run the agent with an evaluator in the loop
+- **Stage 1**: evaluator training
+- **Stage 2**: experience optimization with summarized feedback
+- **Inference**: run the agent with an evaluator in the loop
 
 This repository does not ship pretrained checkpoints. Users are expected to run Stage 1 locally and may optionally run Stage 2 for the full pipeline.
 
